@@ -12,11 +12,12 @@ Ziel ist ein energetisches Gesamtbild des Hauses aus drei Datenquellen, siehe [P
 | Raumtemperaturen (Sonoff-Heizkörperventile) | bereits in HA vorhanden | vorhandene Sonoff-Integration, keine weitere Arbeit nötig |
 | Vor-/Rücklauftemperaturen an ca. 20 Heizkörpern | Konzeptphase, für später | eigene batteriebetriebene ESP32-C6/DS18B20-Module, siehe [hardware/vorlauf-ruecklauf-modul.md](../hardware/vorlauf-ruecklauf-modul.md) |
 
-## eBUS-Anbindung: Grundidee
+## eBUS-Anbindung: Status
 
-1. eBUS Adapter Shield C6 verbindet sich per WLAN mit dem eBUS der Vaillant-Anlage.
-2. [ebusd](https://github.com/john30/ebusd) läuft als **Home-Assistant-Add-on** (existiert bereits im Add-on-Store) und übersetzt die eBUS-Telegramme in lesbare Werte.
-3. Die HA Core-Integration `ebusd` verbindet sich per TCP mit dem Add-on und stellt die Werte als Entitäten bereit.
+1. eBUS Adapter Shield C6 verbindet sich per WLAN mit dem eBUS der Vaillant-Anlage — WLAN-Einrichtung ✅ abgeschlossen, siehe [Inbetriebnahme-Doku](../docs/inbetriebnahme-ebus-adapter-c6.md).
+2. [ebusd](https://github.com/john30/ebusd) läuft als **Home-Assistant-Add-on** (Community-Repo `LukasGrebe/ha-addons`, da offiziell nicht im Store) und übersetzt die eBUS-Telegramme in lesbare Werte. Installation & Konfiguration ✅ abgeschlossen, Verbindung zum Adapter über `ens:192.168.1.235:9999` steht (bestätigt per `ebusctl info`) — siehe [Inbetriebnahme-Doku](../docs/inbetriebnahme-ebusd-addon.md).
+3. Werte werden per MQTT Discovery (`--mqttjson`, im Add-on standardmäßig aktiviert) automatisch als HA-Entitäten bereitgestellt.
+4. **Noch offen:** Adapter ist noch nicht physisch an die Heizung angeschlossen (`signal: no signal`) — sobald das passiert, sollten Werte fließen.
 
 ## Aktueller Fokus: möglichst alle eBUS-Parameter sichtbar machen
 
