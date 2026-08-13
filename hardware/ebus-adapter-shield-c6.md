@@ -5,6 +5,15 @@ Fertige Hardware-Lösung für die eBUS-Anbindung, ausgewählt statt Eigenbau.
 - Produktseite: https://www.elecrow.com/ebus-adapter-shield-c6.html
 - Technische Doku: https://adapter.ebusd.eu/v5-c6
 
+## Netzwerkanbindung (unser Gerät)
+
+- Feste IP im Heimnetz: **192.168.1.235** (DHCP-Reservierung am Router)
+- MAC-Adresse: `58-E6-C5-F4-DC-E8`
+- Hostname: `ebus-f4dce8`
+- eBUS-Protokoll (easi>-Konfiguration): enhanced on, TCP enhanced protocol
+
+Ausführliche Inbetriebnahme-Doku: [docs/inbetriebnahme-ebus-adapter-c6.md](../docs/inbetriebnahme-ebus-adapter-c6.md)
+
 ## Spezifikationen
 
 - Mikrocontroller: ESP32-C6 mit integrierter Antenne
