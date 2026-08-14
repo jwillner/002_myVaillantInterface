@@ -92,10 +92,90 @@ address 36: slave #8, ebusd
 
 **Status:** ✅ Software-Einrichtung des ebusd-Add-ons vollständig abgeschlossen. Sobald der Adapter physisch an den eBUS der Heizung angeschlossen wird, sollte `ebusctl info` unter „signal" einen aktiven Zustand zeigen und `messages`/`update` ansteigen.
 
+## Schritt 8: Adapter an der Heizung angeschlossen — Fehlersuche „meldet sich nicht"
+
+**Aktion:** Adapter physisch vom Schreibtisch zur Heizung umgezogen und an den eBUS angeschlossen.
+
+**Beobachtung:** Nach dem Umzug leuchtete die LED am Adapter **gar nicht** mehr.
+
+**Ursache:** Der C6-Shield wird über **USB-C** mit Strom versorgt — die eBUS-Klemmen liefern selbst keinen Strom für den Adapter. Beim Umzug wurde die USB-Stromversorgung nicht wieder angeschlossen.
+
+**Behoben:** Adapter erneut per USB-C an ein Netzteil angeschlossen → LED leuchtet wieder.
+
+**Verifiziert:** Ping auf `192.168.1.235` erfolgreich (Adapter im Heimnetz erreichbar, WLAN-Konfiguration/DHCP-Reservierung hat den Standortwechsel unbeschadet überstanden — kein Fallback in den unkonfigurierten „EBUS"-AP-Modus).
+
+**`ebusctl info` nach Anschluss an die Heizung:**
+```
+signal: acquired
+scan: finished
+masters: 6
+messages: 242
+address 00: master #1
+address 03: master #11
+address 04: slave #25, scanned "MF=Vaillant;ID=NETX3;SW=0129;HW=0404"
+address 08: slave #11, scanned "MF=Vaillant;ID=BAI00;SW=0704;HW=7603", loaded "vaillant/08.bai.csv"
+address 10: master #2
+address 15: slave #2, scanned "MF=Vaillant;ID=EMM00;SW=0104;HW=8503"
+address 31: master #8, ebusd
+address 36: slave #8, ebusd
+address f1: master #10
+address f6: slave #10, scanned "MF=Vaillant;ID=NETX3;SW=0129;HW=0404"
+address ff: master #25
+```
+
+**Interpretation:** eBUS-Anbindung an die Heizung erfolgreich. Gefundene Teilnehmer:
+- `NETX3` (Adressen 04/f6) — Bedienmodul/Regler
+- `BAI00` (Adresse 08) — Wärmeerzeuger (Heizgerät), passende CSV-Konfiguration automatisch geladen
+- `EMM00` (Adresse 15) — Erweiterungsmodul
+
+**Status:** ✅ Adapter erfolgreich an der Heizung angeschlossen, eBUS-Signal wird empfangen und Teilnehmer erkannt.
+
+## Schritt 9: MQTT Discovery verifizieren
+
+**Voraussetzung geprüft:** Unter **Einstellungen → Geräte & Dienste** war bereits eine **MQTT**-Integration verbunden (Broker lief schon produktiv, u. a. für eine Zigbee2MQTT-Bridge) — keine zusätzliche Einrichtung nötig.
+
+**Aktion:** Unter **Einstellungen → Geräte & Dienste → Entitäten** nach „ebusd" gesucht.
+
+**Ergebnis:** Discovery hat automatisch mehrere Geräte angelegt, u. a. **„ebusd bai"** (= Wärmeerzeuger BAI00) mit ca. 80 Sensor-Entitäten (alle internen Zähler, Zustände und Temperaturen, die ebusd aus der `vaillant/08.bai.csv`-Konfiguration kennt).
+
+**Beobachtung — Warmwasser-Werte sind Platzhalter:** Die Anlage hat **kein Warmwasser/keinen Speicher**. Entsprechende Sensoren wie `HwcTemp` (116,1 °C) und `StorageTemp` (-14,9 °C) zeigen unplausible Werte — vermutlich codiert eBUS bei nicht vorhandener Hardware einen Platzhalter/Ungültig-Wert, der bei manchen Feldern als „Unbekannt", bei anderen als unplausible Zahl dargestellt wird. Diese Sensoren daher nicht fürs Dashboard verwenden.
+
+**Beobachtung — Rücklauftemperatur bei fehlender Heizanforderung:** `Expertlevel_ReturnTemp` zeigte im Sommer ohne aktive Heizanforderung einen negativen Wert (-1,8 °C), obwohl Außentemperatur 23,9 °C betrug. Vermutete Ursache: ohne Wasserfluss durch den Rücklauffühler (Heizkreis-Pumpe inaktiv/„post_run") liefert das Feld keinen echten Messwert, sondern denselben Art Platzhalter-Code wie oben. **Noch zu verifizieren:** Wird der Wert plausibel, sobald die Heizung tatsächlich eine aktive Heizanforderung fährt?
+
+**Status:** ✅ MQTT Discovery funktioniert wie erwartet.
+
+## Schritt 10: Dashboard-Karte „Heizung" angelegt
+
+**Aktion:** Auf dem „Übersicht"-Dashboard über **Bearbeiten → Karte hinzufügen → Entitäten → YAML bearbeiten** folgende Karte angelegt:
+
+```yaml
+type: entities
+title: Heizung
+entities:
+  - entity: sensor.heating_ebusd_bai_flowtemp_temp
+    name: Vorlauf Ist
+  - entity: sensor.heating_ebusd_bai_expertlevel_returntemp_temp
+    name: Rücklauf Ist
+  - entity: sensor.heating_ebusd_bai_flowtempdesired
+    name: Vorlauf Soll
+  - entity: sensor.heating_ebusd_bai_flowtempmax
+    name: Vorlauf Max
+  - entity: sensor.heating_ebusd_bai_outdoorstempsensor_temp
+    name: Außentemperatur
+  - entity: sensor.heating_ebusd_bai_hcpumpmode
+    name: Heizkreis-Pumpe
+  - entity: sensor.heating_ebusd_bai_hcstarts
+    name: Heizkreis-Starts (gesamt)
+  - entity: sensor.heating_ebusd_bai_hcunderhundredstarts
+    name: Kurztakt-Starts (<100s)
+```
+
+**Auswahlkriterium:** Fokus auf Werte, die auf das Projektziel „energetisches Abbild fürs Wärmepumpen-Invest" einzahlen — Vorlauf/Rücklauf für die Spreizung (ΔT), Außentemperatur als Referenz, Start-/Kurztakt-Zähler als Indikator für eine mögliche Überdimensionierung des bestehenden Wärmeerzeugers. Warmwasser-Sensoren bewusst ausgelassen (Anlage hat kein Warmwasser).
+
+**Status:** ✅ Karte gespeichert und auf der Übersicht sichtbar.
+
 ## Nächste Schritte (offen)
 
-1. Adapter physisch an die Vaillant-Heizung anschließen (eBUS-Klemmen).
-2. `ebusctl info` erneut prüfen — Signal sollte kommen.
-3. Verfügbare Werte scannen (`ebusctl find` bzw. passende Vaillant-CSV-Konfiguration für das konkrete Gerätemodell klären).
-4. Home-Assistant-Entitäten prüfen (über MQTT Discovery sollten automatisch Sensoren erscheinen).
-5. Diagramm-/Auswertungsweg festlegen (Grafana vs. eigenes Web-Interface) — siehe [home-assistant/README.md](../home-assistant/README.md).
+1. Verifizieren, ob `Expertlevel_ReturnTemp` bei aktiver Heizanforderung einen plausiblen Wert liefert (siehe Beobachtung in Schritt 9).
+2. Prüfen, ob `VortexFlowSensor` und `PrEnergyCountHc1-3` (aktuell „Unbekannt") jemals Werte liefern — daraus ließe sich die tatsächliche Heizleistung (Durchfluss × ΔT) berechnen, die stärkste Kennzahl für die Wärmepumpen-Entscheidung.
+3. Diagramm-/Auswertungsweg festlegen (Grafana vs. eigenes Web-Interface) — siehe [home-assistant/README.md](../home-assistant/README.md).
